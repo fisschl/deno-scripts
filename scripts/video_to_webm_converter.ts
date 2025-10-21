@@ -2,9 +2,10 @@
  * 视频转WebM转换脚本
  *
  * 功能说明：
- *   此脚本将当前目录中指定格式的视频文件转换为WebM格式。
+ *   此脚本递归扫描当前目录及所有子目录，将指定格式的视频文件转换为WebM格式。
  *   支持AVI、MOV、MTS、VOB、MPG、3GP、WMV等格式的转换。
  *   转换是原地的，成功后自动删除源文件。
+ *   支持深层嵌套的目录结构。
  *
  * 使用方法：
  *   deno run --allow-run --allow-read --allow-write --allow-env video_to_webm_converter.ts
@@ -26,6 +27,12 @@
  *   - 音频编码器: Opus
  *   - 质量设置: 中等质量 (CRF 33)
  *   - 速度设置: 中等速度 (cpu-used 4)
+ *
+ * 递归扫描说明：
+ *   - 递归扫描当前目录及所有子目录
+ *   - 自动处理深层嵌套的文件结构
+ *   - 显示每个被扫描的目录路径
+ *   - 跳过隐藏文件和目录
  *
  * 安全说明：
  *   - 脚本会跳过隐藏文件和目录
@@ -243,42 +250,43 @@ async function convertVideoFile(inputPath: string): Promise<void> {
 }
 
 /**
- * 扫描并转换当前目录中的视频文件
+ * 递归扫描目录并转换视频文件
  */
-async function scanAndConvertVideos(): Promise<void> {
-  console.log(`📁 扫描目录: ${CURRENT_DIR}`);
-  console.log(`🎯 支持的格式: ${SUPPORTED_EXTENSIONS.join(", ")}`);
+async function scanDirectoryRecursively(dirPath: string): Promise<void> {
+  console.log(`📂 扫描目录: ${dirPath}`);
 
-  let processedCount = 0;
-  let skippedCount = 0;
-
-  for await (const entry of Deno.readDir(CURRENT_DIR)) {
+  for await (const entry of Deno.readDir(dirPath)) {
     // 跳过隐藏文件和目录
     if (entry.name.startsWith(".")) {
       continue;
     }
 
-    // 只处理文件
-    if (!entry.isFile) {
-      continue;
-    }
+    const fullPath = join(dirPath, entry.name);
 
-    const fullPath = join(CURRENT_DIR, entry.name);
-    const ext = getFileExtension(fullPath);
+    if (entry.isDirectory) {
+      // 递归处理子目录
+      await scanDirectoryRecursively(fullPath);
+    } else if (entry.isFile) {
+      const ext = getFileExtension(fullPath);
 
-    // 检查是否为支持的格式
-    if (ext && SUPPORTED_EXTENSIONS.includes(ext)) {
-      await convertVideoFile(fullPath);
-      processedCount++;
-    } else if (ext === OUTPUT_EXTENSION) {
-      console.log(`⏭️  跳过: 已经是WebM格式 ${entry.name}`);
-      skippedCount++;
+      // 检查是否为支持的格式
+      if (ext && SUPPORTED_EXTENSIONS.includes(ext)) {
+        await convertVideoFile(fullPath);
+      } else if (ext === OUTPUT_EXTENSION) {
+        console.log(`⏭️  跳过: 已经是WebM格式 ${fullPath}`);
+      }
     }
   }
+}
 
-  console.log("\n📊 处理统计:");
-  console.log(`✅ 成功处理: ${processedCount} 个文件`);
-  console.log(`⏭️  跳过文件: ${skippedCount} 个文件`);
+/**
+ * 扫描并转换当前目录及子目录中的视频文件
+ */
+async function scanAndConvertVideos(): Promise<void> {
+  console.log(`📁 开始递归扫描目录: ${CURRENT_DIR}`);
+  console.log(`🎯 支持的格式: ${SUPPORTED_EXTENSIONS.join(", ")}`);
+
+  await scanDirectoryRecursively(CURRENT_DIR);
 }
 
 /**
