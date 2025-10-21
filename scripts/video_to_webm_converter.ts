@@ -19,13 +19,13 @@
  *   - Windows Media (.wmv)
  *
  * 输出格式：
- *   - WebM (.webm) - VP9视频编码，Opus音频编码
+ *   - WebM (.webm) - AV1视频编码，Opus音频编码
  *
  * 转换参数：
- *   - 视频编码器: VP9
+ *   - 视频编码器: AV1 (libaom-av1)
  *   - 音频编码器: Opus
- *   - 质量设置: 中等质量
- *   - 速度设置: 中等速度
+ *   - 质量设置: 中等质量 (CRF 33)
+ *   - 速度设置: 中等速度 (cpu-used 4)
  *
  * 安全说明：
  *   - 脚本会跳过隐藏文件和目录
@@ -67,15 +67,15 @@ const OUTPUT_EXTENSION = "webm";
 
 /** 转换参数（使用双层数组避免格式化问题） */
 const CONVERSION_PARAMS = [
-  ["-c:v", "libvpx-vp9"],
+  ["-c:v", "libaom-av1"],
   ["-c:a", "libopus"],
-  ["-crf", "31"],
+  ["-crf", "33"],
   ["-b:v", "0"],
   ["-b:a", "128k"],
-  ["-speed", "1"],
+  ["-cpu-used", "4"],
   ["-threads", "4"],
   ["-tile-columns", "2"],
-  ["-frame-parallel", "1"],
+  ["-row-mt", "1"],
 ];
 
 // 检测可用的FFmpeg路径
