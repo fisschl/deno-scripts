@@ -32,29 +32,21 @@ import { encodeBase58 } from "jsr:@std/encoding@1.0.10";
  * 配置常量
  * 请根据实际需求修改以下配置
  */
-const CONFIG = {
-  /** 源目录路径 */
-  sourcePath: "./source", // 修改为实际的源目录路径
 
-  /** 目标目录路径 */
-  targetPath: "./target", // 修改为实际的目标目录路径
+/** 源目录路径 */
+const SOURCE_PATH = "./source"; // 修改为实际的源目录路径
 
-  /** 文件扩展名列表（小写，不含点号） */
-  extensions: ["mp4", "webm", "m4v"], // 支持的文件类型
+/** 目标目录路径 */
+const TARGET_PATH = "./target"; // 修改为实际的目标目录路径
 
-  /** 是否在复制后删除源文件（剪切模式） */
-  moveAfterCopy: false, // true 为剪切模式，false 为复制模式
-};
+/** 文件扩展名列表（小写，不含点号） */
+const EXTENSIONS = ["mp4", "webm", "m4v"]; // 支持的文件类型
 
-/**
- * 配置接口定义
- */
-interface Config {
-  sourcePath: string;
-  targetPath: string;
-  extensions: string[];
-  moveAfterCopy: boolean;
-}
+/** 是否在复制后删除源文件（剪切模式） */
+const MOVE_AFTER_COPY = false; // true 为剪切模式，false 为复制模式
+
+// 确保目标目录存在
+await ensureDirectoryExists(TARGET_PATH);
 
 /**
  * 获取文件扩展名
@@ -112,7 +104,7 @@ async function ensureDirectoryExists(dirPath: string): Promise<void> {
 async function copySingleFile(
   sourceFile: string,
   targetDir: string,
-  moveAfterCopy: boolean
+  moveAfterCopy: boolean,
 ): Promise<void> {
   console.log(`处理文件: ${sourceFile}`);
 
@@ -151,7 +143,9 @@ async function copySingleFile(
  */
 async function scanAndCopyFiles(
   dirPath: string,
-  config: Config
+  targetPath: string,
+  extensions: string[],
+  moveAfterCopy: boolean,
 ): Promise<void> {
   const entries = Deno.readDir(dirPath);
 
@@ -165,45 +159,20 @@ async function scanAndCopyFiles(
 
     if (entry.isDirectory) {
       // 递归处理子目录
-      await scanAndCopyFiles(fullPath, config);
+      await scanAndCopyFiles(fullPath, targetPath, extensions, moveAfterCopy);
       continue;
     }
 
     if (entry.isFile) {
       // 检查文件扩展名
       const ext = getFileExtension(fullPath);
-      if (!ext || !config.extensions.includes(ext)) {
+      if (!ext || !extensions.includes(ext)) {
         continue;
       }
       // 处理匹配的文件
-      await copySingleFile(fullPath, config.targetPath, config.moveAfterCopy);
+      await copySingleFile(fullPath, targetPath, moveAfterCopy);
     }
   }
-}
-
-/**
- * 验证配置
- */
-async function validateConfig(config: Config): Promise<void> {
-  // 检查源目录是否存在
-  const sourceStat = await Deno.stat(config.sourcePath);
-  if (!sourceStat.isDirectory) {
-    throw new Error(`源路径不是目录: ${config.sourcePath}`);
-  }
-
-  // 检查并创建目标目录
-  await ensureDirectoryExists(config.targetPath);
-
-  // 验证扩展名列表
-  if (config.extensions.length === 0) {
-    throw new Error("文件扩展名列表不能为空");
-  }
-
-  console.log(`配置验证成功:`);
-  console.log(`  源目录: ${config.sourcePath}`);
-  console.log(`  目标目录: ${config.targetPath}`);
-  console.log(`  文件类型: ${config.extensions.join(", ")}`);
-  console.log(`  操作模式: ${config.moveAfterCopy ? "剪切" : "复制"}`);
 }
 
 /**
@@ -211,17 +180,18 @@ async function validateConfig(config: Config): Promise<void> {
  */
 async function main(): Promise<void> {
   console.log("=== 文件复制并重命名脚本 ===");
-
-  // 验证配置
-  await validateConfig(CONFIG);
+  console.log(`源目录: ${SOURCE_PATH}`);
+  console.log(`目标目录: ${TARGET_PATH}`);
+  console.log(`文件类型: ${EXTENSIONS.join(", ")}`);
+  console.log(`操作模式: ${MOVE_AFTER_COPY ? "剪切" : "复制"}`);
 
   console.log("\n开始处理文件...");
 
   // 开始扫描和复制文件
-  await scanAndCopyFiles(CONFIG.sourcePath, CONFIG);
+  await scanAndCopyFiles(SOURCE_PATH, TARGET_PATH, EXTENSIONS, MOVE_AFTER_COPY);
 
   console.log("\n=== 处理完成 ===");
-  console.log(`文件${CONFIG.moveAfterCopy ? "剪切" : "复制"}操作已成功完成！`);
+  console.log(`文件${MOVE_AFTER_COPY ? "剪切" : "复制"}操作已成功完成！`);
 }
 
 // 运行主函数
