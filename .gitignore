@@ -1,2 +1,47 @@
 # Claude AI configuration
 .claude/
+
+# Deno
+.deno/
+
+# 编译输出
+dist/
+build/
+out/
+
+# 缓存目录
+.cache/
+
+# 日志文件
+*.log
+
+# 环境变量文件
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# 编辑器目录和文件
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+Thumbs.db
+ehthumbs.db
+.DS_Store
+
+# 测试覆盖率
+coverage/
+*.lcov
+
+# 临时文件
+tmp/
+temp/
+
+# 打包文件
+*.tar.gz
+*.zip
+*.7z
