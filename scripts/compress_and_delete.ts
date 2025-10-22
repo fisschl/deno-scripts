@@ -29,6 +29,7 @@
 
 // 导入path模块用于路径处理
 import { join } from "jsr:@std/path@^1.1.2";
+import { exists } from "jsr:@std/fs@^1.0.19/exists";
 
 /**
  * 获取系统中常见的7z安装路径
@@ -197,17 +198,17 @@ for (const item of items) {
   const outputPath = join(currentDir, `${item.name}.7z`);
 
   // 检查输出的压缩文件是否已存在
-  try {
-    await Deno.stat(outputPath);
+  if (await exists(outputPath)) {
     console.log(`跳过: 压缩文件 ${outputPath} 已存在`);
     continue; // 如果文件已存在，跳过当前项目处理
-  } catch {
-    // 文件不存在，继续处理（这是预期的正常情况）
-    // 当文件不存在时，Deno.stat会抛出异常
   }
 
   // 压缩当前项目
-  const compressSuccess = await compressItem(itemPath, outputPath, sevenZipPath);
+  const compressSuccess = await compressItem(
+    itemPath,
+    outputPath,
+    sevenZipPath
+  );
 
   // 只有压缩成功后才删除源文件或目录
   if (compressSuccess) {

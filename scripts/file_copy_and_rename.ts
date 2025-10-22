@@ -27,6 +27,7 @@
 import { extname, join } from "jsr:@std/path@1.1.2";
 import { crypto } from "jsr:@std/crypto@1.0.5";
 import { encodeBase58 } from "jsr:@std/encoding@1.0.10";
+import { exists } from "jsr:@std/fs@1.0.19/exists";
 
 /**
  * 配置常量
@@ -39,34 +40,22 @@ const SOURCE_PATH = "./source"; // 修改为实际的源目录路径
 /** 目标目录路径 */
 const TARGET_PATH = "./target"; // 修改为实际的目标目录路径
 
-/** 文件扩展名列表（小写，不含点号） */
-const EXTENSIONS = ["mp4", "webm", "m4v"]; // 支持的文件类型
+/** 文件扩展名列表（小写，含点号） */
+const EXTENSIONS = [".mp4", ".webm", ".m4v"]; // 支持的文件类型
 
 /** 是否在复制后删除源文件（剪切模式） */
 const MOVE_AFTER_COPY = false; // true 为剪切模式，false 为复制模式
 
 // 确保目标目录存在
-await ensureDirectoryExists(TARGET_PATH);
-
-/**
- * 获取文件扩展名
- */
-function getFileExtension(filePath: string): string | null {
-  const ext = extname(filePath);
-  return ext ? ext.slice(1).toLowerCase() : null;
+// 使用标准库的exists函数检查目录是否存在
+if (!(await exists(TARGET_PATH))) {
+  await Deno.mkdir(TARGET_PATH, { recursive: true });
+  console.log(`创建目录: ${TARGET_PATH}`);
 }
 
-/**
- * 检查文件是否存在
- */
-async function fileExists(path: string): Promise<boolean> {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch {
-    return false;
-  }
-}
+// 直接使用@std/path的extname函数获取带点的扩展名
+
+// 使用标准库的exists函数检查文件是否存在，已在导入部分引入
 
 /**
  * 计算文件的Blake3哈希值并使用Base58编码
@@ -86,53 +75,42 @@ async function calculateFileHash(filePath: string): Promise<string> {
   }
 }
 
-/**
- * 确保目录存在，如果不存在则创建
- */
-async function ensureDirectoryExists(dirPath: string): Promise<void> {
-  try {
-    await Deno.stat(dirPath);
-  } catch {
-    await Deno.mkdir(dirPath, { recursive: true });
-    console.log(`创建目录: ${dirPath}`);
-  }
-}
+// 不再需要自定义的ensureDirectoryExists函数，使用exists和Deno.mkdir直接操作
 
 /**
  * 复制单个文件
  */
-async function copySingleFile(
-  sourceFile: string,
-  targetDir: string,
-  moveAfterCopy: boolean,
-): Promise<void> {
+async function copySingleFile(sourceFile: string): Promise<void> {
   console.log(`处理文件: ${sourceFile}`);
 
   // 1. 计算文件哈希值
   const hash = await calculateFileHash(sourceFile);
 
   // 2. 获取文件扩展名
-  const extension = getFileExtension(sourceFile);
+  const extension = extname(sourceFile);
 
   // 3. 构建目标文件路径（哈希值 + 原始扩展名）
-  const targetFileName = extension ? `${hash}.${extension}` : hash;
-  const targetPath = join(targetDir, targetFileName);
+  const targetFileName = extension ? `${hash}${extension}` : hash;
+  const targetPath = join(TARGET_PATH, targetFileName);
 
   // 4. 检查目标文件是否已存在
-  if (await fileExists(targetPath)) {
+  if (await exists(targetPath)) {
     console.log(`跳过: 目标文件已存在 ${targetPath}`);
     return;
   }
 
   // 5. 确保目标目录存在
-  await ensureDirectoryExists(targetDir);
+  if (!(await exists(TARGET_PATH))) {
+    await Deno.mkdir(TARGET_PATH, { recursive: true });
+    console.log(`创建目录: ${TARGET_PATH}`);
+  }
 
   // 6. 复制文件
   await Deno.copyFile(sourceFile, targetPath);
   console.log(`复制成功: ${sourceFile} -> ${targetPath}`);
 
   // 7. 如果启用了剪切模式，复制成功后删除源文件
-  if (moveAfterCopy) {
+  if (MOVE_AFTER_COPY) {
     await Deno.remove(sourceFile);
     console.log(`删除源文件: ${sourceFile}`);
   }
@@ -141,12 +119,7 @@ async function copySingleFile(
 /**
  * 递归扫描并处理文件
  */
-async function scanAndCopyFiles(
-  dirPath: string,
-  targetPath: string,
-  extensions: string[],
-  moveAfterCopy: boolean,
-): Promise<void> {
+async function scanAndCopyFiles(dirPath: string): Promise<void> {
   const entries = Deno.readDir(dirPath);
 
   for await (const entry of entries) {
@@ -159,40 +132,33 @@ async function scanAndCopyFiles(
 
     if (entry.isDirectory) {
       // 递归处理子目录
-      await scanAndCopyFiles(fullPath, targetPath, extensions, moveAfterCopy);
+      await scanAndCopyFiles(fullPath);
       continue;
     }
 
     if (entry.isFile) {
-      // 检查文件扩展名
-      const ext = getFileExtension(fullPath);
-      if (!ext || !extensions.includes(ext)) {
+      // 检查文件扩展名（转为小写进行比较）
+      const ext = extname(fullPath).toLowerCase();
+      if (!ext || !EXTENSIONS.includes(ext)) {
         continue;
       }
       // 处理匹配的文件
-      await copySingleFile(fullPath, targetPath, moveAfterCopy);
+      await copySingleFile(fullPath);
     }
   }
 }
 
-/**
- * 主函数
- */
-async function main(): Promise<void> {
-  console.log("=== 文件复制并重命名脚本 ===");
-  console.log(`源目录: ${SOURCE_PATH}`);
-  console.log(`目标目录: ${TARGET_PATH}`);
-  console.log(`文件类型: ${EXTENSIONS.join(", ")}`);
-  console.log(`操作模式: ${MOVE_AFTER_COPY ? "剪切" : "复制"}`);
+// 顺序执行脚本逻辑
+console.log("=== 文件复制并重命名脚本 ===");
+console.log(`源目录: ${SOURCE_PATH}`);
+console.log(`目标目录: ${TARGET_PATH}`);
+console.log(`文件类型: ${EXTENSIONS.join(", ")}`);
+console.log(`操作模式: ${MOVE_AFTER_COPY ? "剪切" : "复制"}`);
 
-  console.log("\n开始处理文件...");
+console.log("\n开始处理文件...");
 
-  // 开始扫描和复制文件
-  await scanAndCopyFiles(SOURCE_PATH, TARGET_PATH, EXTENSIONS, MOVE_AFTER_COPY);
+// 开始扫描和复制文件
+await scanAndCopyFiles(SOURCE_PATH);
 
-  console.log("\n=== 处理完成 ===");
-  console.log(`文件${MOVE_AFTER_COPY ? "剪切" : "复制"}操作已成功完成！`);
-}
-
-// 运行主函数
-await main();
+console.log("\n=== 处理完成 ===");
+console.log(`文件${MOVE_AFTER_COPY ? "剪切" : "复制"}操作已成功完成！`);
